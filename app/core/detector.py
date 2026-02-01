@@ -1,18 +1,23 @@
-SCAM_KEYWORDS = [
-    "account blocked",
-    "verify immediately",
-    "urgent",
-    "upi",
-    "otp",
-    "refund",
-    "suspended",
-    "click link",
-    "kyc",
-    "bank",
-    "payment failed"
-]
-
-
 def detect_scam(message: str) -> bool:
+    if not message:
+        return False
+
     msg = message.lower()
-    return any(keyword in msg for keyword in SCAM_KEYWORDS)
+
+    scam_keywords = [
+        "account",
+        "blocked",
+        "suspended",
+        "verify",
+        "kyc",
+        "urgent",
+        "send money",
+        "upi",
+        "bank",
+        "payment",
+        "link",
+        "click",
+        "refund"
+    ]
+
+    return any(keyword in msg for keyword in scam_keywords)
