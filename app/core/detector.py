@@ -1,6 +1,7 @@
-def detect_scam(message: str) -> bool:
-    if not message:
+def detect_scam(message):
+    if not isinstance(message, str):
         return False
+    msg = message.lower()
 
     msg = message.lower()
 
