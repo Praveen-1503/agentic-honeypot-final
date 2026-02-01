@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request
-import os
+from fastapi import APIRouter, HTTPException, Request, Body
 from typing import Optional
+import os
 
 from app.schemas import HoneypotRequest
 from app.core.memory import get_history, add_message
@@ -10,9 +10,9 @@ from app.extraction.extractor import extract_intelligence
 
 router = APIRouter()
 
-# --------------------------------------------------
-# GET → Health check (required by GUVI tester)
-# --------------------------------------------------
+
+# ---------------- HEALTH CHECK (GET) ----------------
+@router.get("/")
 @router.get("/honeypot")
 async def honeypot_health():
     return {
@@ -20,17 +20,16 @@ async def honeypot_health():
         "message": "Agentic Honeypot endpoint is live"
     }
 
-# --------------------------------------------------
-# POST → Main honeypot logic
-# --------------------------------------------------
+
+# ---------------- MAIN HONEYPOT (POST) ----------------
+@router.post("/")
 @router.post("/honeypot")
 async def honeypot_endpoint(
     request: Request,
-    payload: Optional[HoneypotRequest] = None
+    payload: Optional[HoneypotRequest] = Body(default=None)
 ):
     # ---------- AUTH ----------
-    api_key = os.environ.get("API_KEY")
-
+    api_key = os.getenv("API_KEY")
     auth = (
         request.headers.get("authorization")
         or request.headers.get("Authorization")
@@ -44,12 +43,12 @@ async def honeypot_endpoint(
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # ---------- TESTER EMPTY BODY ----------
+    # ---------- EMPTY BODY (GUVI TESTER CASE) ----------
     if payload is None:
         return {
             "is_scam": False,
             "agent_active": False,
-            "reply": "Honeypot active",
+            "reply": "Honeypot active and listening",
             "engagement_turns": 0,
             "extracted_intelligence": {
                 "upi_ids": [],
@@ -75,7 +74,7 @@ async def honeypot_endpoint(
             }
         }
 
-    # ---------- STORE SCAMMER MESSAGE ----------
+    # ---------- STORE MESSAGE ----------
     add_message(payload.conversation_id, "scammer", payload.message)
     history = get_history(payload.conversation_id)
 
@@ -98,10 +97,8 @@ async def honeypot_endpoint(
             "phishing_urls": []
         }
 
-    # ---------- STORE AGENT RESPONSE ----------
     add_message(payload.conversation_id, "agent", reply)
 
-    # ---------- RESPONSE ----------
     return {
         "is_scam": is_scam,
         "agent_active": agent_active,
