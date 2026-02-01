@@ -5,15 +5,26 @@ from app.core.memory import get_history, add_message
 from app.core.detector import detect_scam
 from app.core.agent import agent_reply, AgentState
 from app.extraction.extractor import extract_intelligence
+from typing import Optional
 
 router = APIRouter()
 
 
 @router.post("/honeypot")
-async def honeypot_endpoint(request: Request, payload: HoneypotRequest):
+async def honeypot_endpoint(
+    request: Request,
+    payload: Optional[HoneypotRequest] = None
+):
+
     # ---------- AUTH ----------
     api_key = os.environ.get("API_KEY")
-    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    auth = (
+    request.headers.get("authorization")
+    or request.headers.get("Authorization")
+    or request.headers.get("x-api-key")
+    or request.headers.get("X-API-Key")
+    )
+
 
     if api_key is None:
         raise HTTPException(status_code=500, detail="API_KEY not set")
@@ -21,7 +32,19 @@ async def honeypot_endpoint(request: Request, payload: HoneypotRequest):
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-
+    if payload is None:
+        return {
+            "is_scam": False,
+            "agent_active": False,
+            "reply": "Honeypot active",
+            "engagement_turns": 0,
+            "extracted_intelligence": {
+                "upi_ids": [],
+                "bank_accounts": [],
+                "ifsc_codes": [],
+                "phishing_urls": []
+            }
+        }
     # ---------- EMPTY MESSAGE GUARD ----------
     if payload.message is None or payload.message.strip() == "":
         history = get_history(payload.conversation_id)
