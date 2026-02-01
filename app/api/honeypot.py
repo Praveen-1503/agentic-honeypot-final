@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from app.config import API_KEY
+import os
 from app.schemas import HoneypotRequest
 from app.core.memory import get_history, add_message
 from app.core.detector import detect_scam
@@ -12,9 +12,15 @@ router = APIRouter()
 @router.post("/honeypot")
 async def honeypot_endpoint(request: Request, payload: HoneypotRequest):
     # ---------- AUTH ----------
+    api_key = os.environ.get("API_KEY")
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    if auth != f"Bearer {API_KEY}":
+
+    if api_key is None:
+        raise HTTPException(status_code=500, detail="API_KEY not set")
+
+    if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+
 
     # ---------- EMPTY MESSAGE GUARD ----------
     if payload.message is None or payload.message.strip() == "":
