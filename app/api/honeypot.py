@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Body
-from typing import Optional
 import os
-
+from typing import Optional, Union
 from app.schemas import HoneypotRequest
 from app.core.memory import get_history, add_message
 from app.core.detector import detect_scam
@@ -26,7 +25,7 @@ async def honeypot_health():
 @router.post("/honeypot")
 async def honeypot_endpoint(
     request: Request,
-    payload: Optional[HoneypotRequest] = Body(default=None)
+    payload: Optional[Union[HoneypotRequest, dict]] = None
 ):
     # ---------- AUTH ----------
     api_key = os.getenv("API_KEY")
@@ -43,6 +42,9 @@ async def honeypot_endpoint(
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    if isinstance(payload, dict):
+        payload = HoneypotRequest(**payload)
+        
     # ---------- EMPTY BODY (GUVI TESTER CASE) ----------
     if payload is None:
         return {
