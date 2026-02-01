@@ -2,11 +2,10 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 
-class HoneypotRequest(BaseModel):
-    conversation_id: str
-    message: str
-    timestamp: Optional[str] = None
 
+class HoneypotRequest(BaseModel):
+    conversation_id: Optional[str] = None
+    message: Optional[str] = None
 
 class ExtractedIntelligence(BaseModel):
     upi_ids: List[str] = []
