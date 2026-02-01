@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Body
 import os
-from typing import Optional, Union
+from typing import Optional
+
 from app.schemas import HoneypotRequest
 from app.core.memory import get_history, add_message
 from app.core.detector import detect_scam
@@ -10,8 +11,7 @@ from app.extraction.extractor import extract_intelligence
 router = APIRouter()
 
 
-# ---------------- HEALTH CHECK (GET) ----------------
-@router.get("/")
+# ✅ HEALTH CHECK (GUVI will hit this sometimes)
 @router.get("/honeypot")
 async def honeypot_health():
     return {
@@ -20,20 +20,20 @@ async def honeypot_health():
     }
 
 
-# ---------------- MAIN HONEYPOT (POST) ----------------
-@router.post("/")
+# ✅ MAIN ENDPOINT (GUVI TESTER SAFE)
 @router.post("/honeypot")
 async def honeypot_endpoint(
     request: Request,
-    payload: Optional[Union[HoneypotRequest, dict]] = None
+    payload: Optional[HoneypotRequest] = Body(None)
 ):
     # ---------- AUTH ----------
-    api_key = os.getenv("API_KEY")
+    api_key = os.environ.get("API_KEY")
+
     auth = (
-        request.headers.get("authorization")
-        or request.headers.get("Authorization")
-        or request.headers.get("x-api-key")
+        request.headers.get("x-api-key")
         or request.headers.get("X-API-Key")
+        or request.headers.get("authorization")
+        or request.headers.get("Authorization")
     )
 
     if not api_key:
@@ -42,15 +42,12 @@ async def honeypot_endpoint(
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    if isinstance(payload, dict):
-        payload = HoneypotRequest(**payload)
-        
-    # ---------- EMPTY BODY (GUVI TESTER CASE) ----------
+    # ---------- GUVI TESTER CASE (NO BODY) ----------
     if payload is None:
         return {
             "is_scam": False,
             "agent_active": False,
-            "reply": "Honeypot active and listening",
+            "reply": "Honeypot active and secured",
             "engagement_turns": 0,
             "extracted_intelligence": {
                 "upi_ids": [],
@@ -61,7 +58,7 @@ async def honeypot_endpoint(
         }
 
     # ---------- EMPTY MESSAGE ----------
-    if not payload.message or payload.message.strip() == "":
+    if not payload.message or not payload.message.strip():
         history = get_history(payload.conversation_id)
         return {
             "is_scam": False,
@@ -76,14 +73,12 @@ async def honeypot_endpoint(
             }
         }
 
-    # ---------- STORE MESSAGE ----------
+    # ---------- PROCESS MESSAGE ----------
     add_message(payload.conversation_id, "scammer", payload.message)
     history = get_history(payload.conversation_id)
 
-    # ---------- SCAM DETECTION ----------
     is_scam = detect_scam(payload.message)
 
-    # ---------- AGENT LOGIC ----------
     if is_scam:
         agent_active = True
         state = AgentState.ENGAGE if len(history) <= 1 else AgentState.EXTRACT
