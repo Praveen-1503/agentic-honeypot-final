@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 
-
 class HoneypotRequest(BaseModel):
     conversation_id: Optional[str] = None
     message: Optional[str] = None
