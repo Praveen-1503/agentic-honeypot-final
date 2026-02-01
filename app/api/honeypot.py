@@ -8,40 +8,30 @@ from app.extraction.extractor import extract_intelligence
 
 router = APIRouter()
 
-# ---------------- HEALTH CHECK (GUVI USES THIS) ----------------
-@router.get("/honeypot")
-async def honeypot_health():
-    return {
-        "status": "ok",
-        "message": "Agentic Honeypot endpoint is live"
-    }
-
-# ---------------- MAIN ENDPOINT ----------------
 @router.post("/honeypot")
 async def honeypot_endpoint(request: Request):
     # ---------- AUTH ----------
-    api_key = os.environ.get("API_KEY")
+    api_key = os.getenv("API_KEY")
     auth = (
-        request.headers.get("authorization")
-        or request.headers.get("Authorization")
-        or request.headers.get("x-api-key")
+        request.headers.get("x-api-key")
         or request.headers.get("X-API-Key")
+        or request.headers.get("authorization")
+        or request.headers.get("Authorization")
     )
 
-    if not api_key:
-        raise HTTPException(status_code=500, detail="API_KEY not set")
-
-    if auth != f"Bearer {api_key}":
+    if not api_key or auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # ---------- SAFE BODY PARSING ----------
+    # ---------- SAFE JSON PARSE ----------
     try:
         body = await request.json()
     except Exception:
-        body = None
+        body = {}
 
-    # ---------- NO BODY (GUVI TESTER CASE) ----------
-    if not body:
+    message = body.get("message")
+    conversation_id = body.get("conversation_id", "default")
+
+    if not message:
         return {
             "is_scam": False,
             "agent_active": False,
@@ -55,26 +45,6 @@ async def honeypot_endpoint(request: Request):
             }
         }
 
-    message = body.get("message")
-    conversation_id = body.get("conversation_id", "default")
-
-    # ---------- EMPTY MESSAGE ----------
-    if not message or message.strip() == "":
-        history = get_history(conversation_id)
-        return {
-            "is_scam": False,
-            "agent_active": False,
-            "reply": "Could you please provide more details?",
-            "engagement_turns": len(history),
-            "extracted_intelligence": {
-                "upi_ids": [],
-                "bank_accounts": [],
-                "ifsc_codes": [],
-                "phishing_urls": []
-            }
-        }
-
-    # ---------- PROCESS MESSAGE ----------
     add_message(conversation_id, "scammer", message)
     history = get_history(conversation_id)
 
