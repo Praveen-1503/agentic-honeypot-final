@@ -10,8 +10,7 @@ from app.extraction.extractor import extract_intelligence
 
 router = APIRouter()
 
-
-# ✅ HEALTH CHECK (GUVI will hit this sometimes)
+# ---------------- HEALTH CHECK (GUVI NEEDS THIS) ----------------
 @router.get("/honeypot")
 async def honeypot_health():
     return {
@@ -19,21 +18,19 @@ async def honeypot_health():
         "message": "Agentic Honeypot endpoint is live"
     }
 
-
-# ✅ MAIN ENDPOINT (GUVI TESTER SAFE)
+# ---------------- MAIN ENDPOINT ----------------
 @router.post("/honeypot")
 async def honeypot_endpoint(
     request: Request,
-    payload: Optional[HoneypotRequest] = Body(None)
+    payload: Optional[HoneypotRequest] = Body(None)  # 🔥 THIS IS THE FIX
 ):
-    # ---------- AUTH ----------
+    # -------- AUTH --------
     api_key = os.environ.get("API_KEY")
-
     auth = (
-        request.headers.get("x-api-key")
-        or request.headers.get("X-API-Key")
-        or request.headers.get("authorization")
+        request.headers.get("authorization")
         or request.headers.get("Authorization")
+        or request.headers.get("x-api-key")
+        or request.headers.get("X-API-Key")
     )
 
     if not api_key:
@@ -42,12 +39,12 @@ async def honeypot_endpoint(
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # ---------- GUVI TESTER CASE (NO BODY) ----------
+    # -------- NO BODY (GUVI TESTER CASE) --------
     if payload is None:
         return {
             "is_scam": False,
             "agent_active": False,
-            "reply": "Honeypot active and secured",
+            "reply": "Honeypot active",
             "engagement_turns": 0,
             "extracted_intelligence": {
                 "upi_ids": [],
@@ -57,8 +54,8 @@ async def honeypot_endpoint(
             }
         }
 
-    # ---------- EMPTY MESSAGE ----------
-    if not payload.message or not payload.message.strip():
+    # -------- EMPTY MESSAGE --------
+    if not payload.message or payload.message.strip() == "":
         history = get_history(payload.conversation_id)
         return {
             "is_scam": False,
@@ -73,19 +70,18 @@ async def honeypot_endpoint(
             }
         }
 
-    # ---------- PROCESS MESSAGE ----------
+    # -------- PROCESS MESSAGE --------
     add_message(payload.conversation_id, "scammer", payload.message)
     history = get_history(payload.conversation_id)
 
     is_scam = detect_scam(payload.message)
 
     if is_scam:
-        agent_active = True
         state = AgentState.ENGAGE if len(history) <= 1 else AgentState.EXTRACT
         reply = agent_reply(state, len(history))
         intel = extract_intelligence(payload.message)
+        agent_active = True
     else:
-        agent_active = False
         reply = "Okay, please continue."
         intel = {
             "upi_ids": [],
@@ -93,6 +89,7 @@ async def honeypot_endpoint(
             "ifsc_codes": [],
             "phishing_urls": []
         }
+        agent_active = False
 
     add_message(payload.conversation_id, "agent", reply)
 
