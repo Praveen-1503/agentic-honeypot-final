@@ -1,8 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request, Body
+from fastapi import APIRouter, HTTPException, Request
 import os
-from typing import Optional
 
-from app.schemas import HoneypotRequest
 from app.core.memory import get_history, add_message
 from app.core.detector import detect_scam
 from app.core.agent import agent_reply, AgentState
@@ -10,7 +8,7 @@ from app.extraction.extractor import extract_intelligence
 
 router = APIRouter()
 
-# ---------------- HEALTH CHECK (GUVI NEEDS THIS) ----------------
+# ---------------- HEALTH CHECK (GUVI USES THIS) ----------------
 @router.get("/honeypot")
 async def honeypot_health():
     return {
@@ -20,11 +18,8 @@ async def honeypot_health():
 
 # ---------------- MAIN ENDPOINT ----------------
 @router.post("/honeypot")
-async def honeypot_endpoint(
-    request: Request,
-    payload: Optional[HoneypotRequest] = Body(None)  # 🔥 THIS IS THE FIX
-):
-    # -------- AUTH --------
+async def honeypot_endpoint(request: Request):
+    # ---------- AUTH ----------
     api_key = os.environ.get("API_KEY")
     auth = (
         request.headers.get("authorization")
@@ -39,8 +34,14 @@ async def honeypot_endpoint(
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # -------- NO BODY (GUVI TESTER CASE) --------
-    if payload is None:
+    # ---------- SAFE BODY PARSING ----------
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+
+    # ---------- NO BODY (GUVI TESTER CASE) ----------
+    if not body:
         return {
             "is_scam": False,
             "agent_active": False,
@@ -54,9 +55,12 @@ async def honeypot_endpoint(
             }
         }
 
-    # -------- EMPTY MESSAGE --------
-    if not payload.message or payload.message.strip() == "":
-        history = get_history(payload.conversation_id)
+    message = body.get("message")
+    conversation_id = body.get("conversation_id", "default")
+
+    # ---------- EMPTY MESSAGE ----------
+    if not message or message.strip() == "":
+        history = get_history(conversation_id)
         return {
             "is_scam": False,
             "agent_active": False,
@@ -70,16 +74,16 @@ async def honeypot_endpoint(
             }
         }
 
-    # -------- PROCESS MESSAGE --------
-    add_message(payload.conversation_id, "scammer", payload.message)
-    history = get_history(payload.conversation_id)
+    # ---------- PROCESS MESSAGE ----------
+    add_message(conversation_id, "scammer", message)
+    history = get_history(conversation_id)
 
-    is_scam = detect_scam(payload.message)
+    is_scam = detect_scam(message)
 
     if is_scam:
         state = AgentState.ENGAGE if len(history) <= 1 else AgentState.EXTRACT
         reply = agent_reply(state, len(history))
-        intel = extract_intelligence(payload.message)
+        intel = extract_intelligence(message)
         agent_active = True
     else:
         reply = "Okay, please continue."
@@ -91,7 +95,7 @@ async def honeypot_endpoint(
         }
         agent_active = False
 
-    add_message(payload.conversation_id, "agent", reply)
+    add_message(conversation_id, "agent", reply)
 
     return {
         "is_scam": is_scam,
