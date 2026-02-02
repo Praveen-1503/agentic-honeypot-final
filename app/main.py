@@ -1,11 +1,10 @@
-from fastapi import FastAPI, Request, HTTPException, Body
+from fastapi import FastAPI, Request, HTTPException
 import os
-from typing import Dict, Any
 
 app = FastAPI()
 
-
-def validate_auth(request: Request):
+@app.post("/")
+async def root_post(request: Request):
     api_key = os.getenv("API_KEY")
 
     auth = (
@@ -20,26 +19,14 @@ def validate_auth(request: Request):
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-
-@app.post("/")
-async def honeypot_entrypoint(
-    request: Request,
-    body: Dict[str, Any] = Body(default={})  # ⭐ THIS IS THE KEY
-):
-    validate_auth(request)
-
-    # Do NOT process body
-    # Do NOT validate body
+    # IMPORTANT: DO NOT read request body
     return {
         "status": "ok",
         "honeypot": "active",
-        "message": "Honeypot endpoint reachable and secured"
+        "message": "Honeypot endpoint reachable"
     }
 
 
 @app.get("/")
-async def health():
-    return {
-        "status": "ok",
-        "service": "Agentic Honeypot running"
-    }
+async def root_get():
+    return {"status": "ok"}
