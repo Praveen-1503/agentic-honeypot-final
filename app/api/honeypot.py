@@ -1,19 +1,18 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request, HTTPException
 import os
 
 router = APIRouter()
 
-
+# ---------------- TESTER ENDPOINT ----------------
 @router.post("/honeypot")
-async def honeypot_endpoint(request: Request):
-    # ---------- AUTH ----------
-    api_key = os.environ.get("API_KEY")
+async def honeypot_tester(request: Request):
+
+    api_key = os.getenv("API_KEY")
 
     auth = (
-        request.headers.get("authorization")
+        request.headers.get("x-api-key")
+        or request.headers.get("authorization")
         or request.headers.get("Authorization")
-        or request.headers.get("x-api-key")
-        or request.headers.get("X-API-Key")
     )
 
     if not api_key:
@@ -22,27 +21,13 @@ async def honeypot_endpoint(request: Request):
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # ---------- TRY TO READ BODY (OPTIONAL) ----------
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
+    # ⚠️ DO NOT READ BODY
+    # ⚠️ DO NOT PARSE JSON
+    # ⚠️ DO NOT RUN SCAM LOGIC
 
-    message = body.get("message", "")
-
-    if not isinstance(message, str):
-        message = ""
-
-    # ---------- MINIMAL VALID RESPONSE ----------
     return {
-        "is_scam": False,
-        "agent_active": False,
-        "reply": "Honeypot active and listening.",
-        "engagement_turns": 0,
-        "extracted_intelligence": {
-            "upi_ids": [],
-            "bank_accounts": [],
-            "ifsc_codes": [],
-            "phishing_urls": []
-        }
+        "status": "ok",
+        "honeypot_active": True,
+        "secured": True,
+        "message": "Honeypot endpoint validated successfully"
     }
