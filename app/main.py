@@ -21,13 +21,16 @@ def validate_auth(request: Request):
 
 @app.post("/")
 async def root_post(request: Request):
+    # Auth check
     validate_auth(request)
 
-    # DO NOT read body
+    # IMPORTANT: Do NOT read request.json()
+    # Do NOT validate body
     return {
         "status": "ok",
         "honeypot": "active",
-        "secured": True
+        "secured": True,
+        "message": "Agentic Honeypot endpoint reachable"
     }
 
 
