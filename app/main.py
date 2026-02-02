@@ -3,8 +3,7 @@ import os
 
 app = FastAPI()
 
-@app.post("/")
-async def root_post(request: Request):
+def validate_auth(request: Request):
     api_key = os.getenv("API_KEY")
 
     auth = (
@@ -19,11 +18,16 @@ async def root_post(request: Request):
     if auth != f"Bearer {api_key}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+
+@app.post("/")
+async def root_post(request: Request):
+    validate_auth(request)
+
+    # DO NOT read body
     return {
         "status": "ok",
-        "honeypot_active": True,
-        "secured": True,
-        "message": "Honeypot endpoint validated successfully"
+        "honeypot": "active",
+        "secured": True
     }
 
 
@@ -31,5 +35,5 @@ async def root_post(request: Request):
 async def root_get():
     return {
         "status": "ok",
-        "message": "Agentic Honeypot service running"
+        "service": "Agentic Honeypot running"
     }
